@@ -3,18 +3,7 @@
 (require 2htdp/image)
 (require 2htdp/universe)
 (require 2htdp/abstraction)
-
-;; list-set : ∀[X] [List-of X] Natural X -> [List-of X]
-;; Assume that the list has an ith element (that means it must have
-;; at least i+1 elements)
-(define (list-set lox i x)
-  (cond
-    [(zero? i) (cons x (rest lox))]
-    [else (cons (first lox) (list-set (rest lox) (sub1 i) x))]))
-
-;; random-element : ∀[X] [NEList-of X] -> X
-(define (random-element lox)
-  (list-ref lox (random (length lox))))
+(require "../util/list.rkt")
 
 ;; ----------------------------------------------------------------------------
 
