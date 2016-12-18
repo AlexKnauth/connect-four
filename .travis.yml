@@ -22,6 +22,7 @@ matrix:
 
 before_install:
  - cd ..
+ - export CC=gcc
  - git clone https://github.com/greghendershott/travis-racket.git
  - cat travis-racket/install-racket.sh | bash # pipe to bash not sh!
  - export PATH="${RACKET_DIR}/bin:${PATH}"
