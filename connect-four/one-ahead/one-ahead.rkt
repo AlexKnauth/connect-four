@@ -86,6 +86,38 @@
                      (list #false #false #false #false #false #false)))
               (list 0 1 4))
 
+(check-expect (next-moves/2
+               X
+               (list (list #false #false #false #false #false #false)
+                     (list #false #false #false #false #false #false)
+                     (list X #false #false #false #false #false)
+                     (list X #false #false #false #false #false)
+                     (list #false #false #false #false #false #false)
+                     (list #false #false #false #false #false #false)
+                     (list O O #false #false #false #false)))
+              (list 1 4))
+(check-expect (next-moves/2
+               X
+               (list (list #false #false #false #false #false #false)
+                     (list #false #false #false #false #false #false)
+                     (list X #false #false #false #false #false)
+                     (list X #false #false #false #false #false)
+                     (list #false #false #false #false #false #false)
+                     (list O O #false #false #false #false)
+                     (list #false #false #false #false #false #false)))
+              (list 1))
+
+(check-expect (next-moves/2
+               X
+               (list (list #false #false #false #false #false #false)
+                     (list #false #false #false #false #false #false)
+                     (list O #false #false #false #false #false)
+                     (list O #false #false #false #false #false)
+                     (list #false #false #false #false #false #false)
+                     (list #false #false #false #false #false #false)
+                     (list X X #false #false #false #false)))
+              (list 1 4 6))
+
 ;; filter-moves : Side Board Natural [List-of Natural] -> [List-of Natural]
 ;; Goes n levels deep
 (define (filter-moves s b n mvs)
