@@ -4,7 +4,8 @@
 
 (provide start-game
          INIT-HH
-         make-game game-turn game-board game-player-types
+         game? make-game game-turn game-board game-player-types
+         end-state? make-end-state
          X O other-side
          valid-moves
          EMPTY-BOARD board-play-at
@@ -12,6 +13,8 @@
          make-player-types player-types-p1 player-types-p2
          HUMAN
          computer? make-computer computer-next-moves
+         game-player-type
+         continue-game
          )
 
 (require 2htdp/image)
@@ -53,6 +56,10 @@
 (define TURN-MSG-FONT-COLOR BLACK)
 (define TURN-MSG-BG (empty-scene TURN-MSG-WIDTH TURN-MSG-HEIGHT))
 
+(define WINNER-MSG-FONT-SIZE 25)
+(define WINNER-MSG-FONT-COLOR RED)
+(define WINNER-MSG-BG TURN-MSG-BG)
+
 (define WIDTH (max TURN-MSG-WIDTH BOARD-WIDTH))
 (define HEIGHT (+ TURN-MSG-HEIGHT BOARD-HEIGHT))
 
@@ -70,11 +77,18 @@
 ;; The main start-game function
 
 ;; A WorldState is one of:
-;;  - Game
+;;  - GameState
 ;;  - Alert
 
-;; An Alert is a (make-alert String Game WorldState)
+;; An Alert is a (make-alert String GameState WorldState)
 (define-struct alert (msg prev next))
+
+;; A GameState is one of:
+;;  - Game
+;;  - EndState
+;; game-state? : Any -> Boolean
+(define (game-state? v)
+  (or (game? v) (end-state? v)))
 
 ;; start-game : Game -> WorldState
 (define (start-game start)
@@ -85,8 +99,11 @@
 
 ;; ----------------------------------------------------------------------------
 
-(define-struct game (turn board player-types))
 ;; A Game is a (make-game Side Board PlayerTypes)
+(define-struct game (turn board player-types))
+
+;; An EndState is a (make-end-state Game [Maybe Side])
+(define-struct end-state (game winner))
 
 ;; A Board is a [List-of BoardColumn]
 ;; A BoardColumn is a [List-of Space]
@@ -262,13 +279,10 @@
 
 ;; Displaying alerts when someone wins
 
-;; check-winner : Game -> WorldState
+;; check-winner : Game -> GameState
 (define (check-winner g)
   (cond [(winning-board? (other-side (game-turn g)) (game-board g))
-         (make-alert (string-append (side->string (other-side (game-turn g)))
-                                    " won!")
-                     g
-                     (make-game X EMPTY-BOARD (game-player-types g)))]
+         (make-end-state g (other-side (game-turn g)))]
         [else g]))
 
 ;; ----------------------------------------------------------------------------
@@ -305,31 +319,47 @@
 
 ;; handle-left : WorldState -> WorldState
 (define (handle-left ws)
-  (cond [(game? ws) ws]
+  (cond [(game-state? ws) ws]
         [(alert? ws) (alert-prev ws)]))
 
 ;; handle-right : WorldState -> WorldState
 (define (handle-right ws)
-  (cond [(game? ws) (continue-game ws)]
+  (cond [(game-state? ws)
+         (cond [(game? ws) (continue-game/alert ws)]
+               [(end-state? ws) (reset-game ws)])]
         [(alert? ws) (alert-next ws)]))
 
-;; continue-game : Game -> WorldState
+;; continue-game/alert : Game -> WorldState
+(define (continue-game/alert g)
+  (local [(define g* (continue-game g))]
+    (cond [(not (false? g*)) g*]
+          [(end-state? g*) g*]
+          [(equal? HUMAN (game-player-type g)) g]
+          [else (make-alert "no next moves" g g)])))
+
+;; continue-game : Game -> [Maybe GameState]
 (define (continue-game g)
   (continue-game/player-type
    (game-player-type g)
    g))
 
-;; continue-game/player-type : PlayerType Game -> WorldState
+;; continue-game/player-type : PlayerType Game -> [Maybe GameState]
 (define (continue-game/player-type t g)
-  (cond [(equal? t HUMAN) g]
+  (cond [(equal? t HUMAN) #false]
         [else
          (local [(define next-moves
                    ((computer-next-moves t) (game-turn g) (game-board g)))]
            (cond
              [(empty? next-moves)
-              (make-alert "no next moves" g g)]
+              (cond [(empty? (valid-moves (game-board g)))
+                     (make-end-state g #false)]
+                    [else #false])]
              [else
               (check-winner (game-play-at g (random-element next-moves)))]))]))
+
+;; reset-game : EndState -> Game
+(define (reset-game e)
+  (make-game X EMPTY-BOARD (game-player-types (end-state-game e))))
 
 ;; ----------------------------------------------------------------------------
 
@@ -337,15 +367,19 @@
 
 ;; draw-world : WorldState -> Image
 (define (draw-world ws)
-  (cond [(game? ws) (draw-game ws)]
+  (cond [(game-state? ws) (draw-game-state ws)]
         [(alert? ws) (overlay (draw-alert-box (alert-msg ws))
                               SEMI-TRANSPARENT-GRAY-RECTANGLE
-                              (draw-game (alert-prev ws)))]))
+                              (draw-game-state (alert-prev ws)))]))
 
-;; draw-game : Game -> Image
-(define (draw-game g)
-  (above (draw-turn-msg (game-turn g))
-         (draw-board (game-board g))))
+;; draw-game-state : GameState -> Image
+(define (draw-game-state g)
+  (cond [(game? g)
+         (above (draw-turn-msg (game-turn g))
+                (draw-board (game-board g)))]
+        [(end-state? g)
+         (above (draw-winner-msg (end-state-winner g))
+                (draw-board (game-board (end-state-game g))))]))
 
 ;; draw-turn-msg : Side -> Image
 (define (draw-turn-msg s)
@@ -353,6 +387,14 @@
                  TURN-MSG-FONT-SIZE
                  TURN-MSG-FONT-COLOR)
            TURN-MSG-BG))
+
+;; draw-winner-msg : [Maybe Side] -> Image
+(define (draw-winner-msg winner)
+  (overlay (text (cond [(false? winner) "It's a tie!"]
+                       [else (string-append (side->string winner) " won!")])
+                 WINNER-MSG-FONT-SIZE
+                 WINNER-MSG-FONT-COLOR)
+           WINNER-MSG-BG))
 
 ;; draw-board : Board -> Image
 (define (draw-board b)
