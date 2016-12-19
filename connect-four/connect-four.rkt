@@ -15,6 +15,7 @@
          computer? make-computer computer-next-moves
          game-player-type
          continue-game
+         draw-game-state
          )
 
 (require 2htdp/image)

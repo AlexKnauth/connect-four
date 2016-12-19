@@ -1,5 +1,9 @@
 #lang htdp/isl+
 
+(require "../util/provide.rkt")
+
+(provide INIT-HC INIT-CH INIT-CC)
+
 (require "../connect-four.rkt")
 
 ;; ----------------------------------------------------------------------------
