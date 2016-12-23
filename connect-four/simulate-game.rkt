@@ -1,8 +1,7 @@
 #lang htdp/isl+
 
 (require "connect-four.rkt")
-(require "gui.rkt")
-(require "util/list.rkt")
+(require "draw/game-state.rkt")
 (require 2htdp/universe)
 
 ;; A GameSequence is a [List-of GameState]
