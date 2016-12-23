@@ -5,6 +5,7 @@
 (provide INIT-HC INIT-CH INIT-CC)
 
 (require "../connect-four.rkt")
+(require "../gui.rkt")
 
 ;; ----------------------------------------------------------------------------
 

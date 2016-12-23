@@ -1,6 +1,7 @@
 #lang htdp/isl+
 
 (require "connect-four.rkt")
+(require "gui.rkt")
 (require "util/list.rkt")
 (require 2htdp/universe)
 
