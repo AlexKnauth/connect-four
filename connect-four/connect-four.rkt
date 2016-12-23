@@ -4,6 +4,7 @@
 
 (provide W H N
          INIT-HH
+         game-state?
          game? make-game game-turn game-board game-player-types
          end-state? make-end-state end-state-game end-state-winner
          X O other-side side->string
@@ -19,8 +20,6 @@
          continue-game
          )
 
-(require 2htdp/image)
-(require 2htdp/universe)
 (require 2htdp/abstraction)
 (require "util/list.rkt")
 
@@ -31,6 +30,15 @@
 (define N 4)
 
 ;; ----------------------------------------------------------------------------
+
+;; Data Definitions
+
+;; A GameState is one of:
+;;  - Game
+;;  - EndState
+;; game-state? : Any -> Boolean
+(define (game-state? v)
+  (or (game? v) (end-state? v)))
 
 ;; A Game is a (make-game Side Board PlayerTypes)
 (define-struct game (turn board player-types))

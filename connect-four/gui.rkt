@@ -33,13 +33,6 @@
 ;; An Alert is a (make-alert String GameState WorldState)
 (define-struct alert (msg prev next))
 
-;; A GameState is one of:
-;;  - Game
-;;  - EndState
-;; game-state? : Any -> Boolean
-(define (game-state? v)
-  (or (game? v) (end-state? v)))
-
 ;; start-game : Game -> WorldState
 (define (start-game start)
   (big-bang start
