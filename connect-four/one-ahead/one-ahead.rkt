@@ -13,20 +13,27 @@
 
 (define MOVES-AHEAD 1)
 
-;; next-moves/n : Natural -> [Side Board -> [List-of Natural]]
+;; A State is a (make-state [Maybe Side] [List-of Natural])
+(define-struct state [winner moves])
+
+;; INIT-STATE : State
+(define INIT-STATE (make-state #false (range 0 W 1)))
+
+;; next-state/n : Natural -> [Side Board -> State]
 ;; Goes 2*n levels deep.
-(define (next-moves/n n)
-  (local [;; next-moves : Side Board -> [List-of Natural]
-          (define (next-moves s b)
-            (filter-moves s b (* 2 n) (valid-moves b)))]
-    next-moves))
+(define (next-state/n n)
+  (local [;; next-state : State Side Board -> State
+          (define (next-state state s b)
+            (best-outcomes s b (* 2 n) (valid-moves b)))]
+    next-state))
 
-;; next-moves : Side Board -> [List-of Natural]
+;; next-state : State Side Board -> State
 ;; Goes 2 levels deep: one turn for s, and one turn for the other side
-(define next-moves (next-moves/n MOVES-AHEAD))
+(define next-state (next-state/n MOVES-AHEAD))
 
-;; tests for next-moves
-(check-expect (next-moves
+;; tests for next-state
+(check-expect (next-state
+               INIT-STATE
                X
                (list (list X X #false #false #false #false)
                      (list O O O #false #false #false)
@@ -35,8 +42,9 @@
                      (list X #false #false #false #false #false)
                      (list O O O #false #false #false)
                      (list X X X #false #false #false)))
-              (list 2 6))
-(check-expect (next-moves
+              (make-state X (list 2 6)))
+(check-expect (next-state
+               INIT-STATE
                X
                (list (list X X #false #false #false #false)
                      (list O O O #false #false #false)
@@ -45,8 +53,9 @@
                      (list X #false #false #false #false #false)
                      (list O O #false #false #false #false)
                      (list O X X #false #false #false)))
-              (list 1))
-(check-expect (next-moves
+              (make-state #false (list 1)))
+(check-expect (next-state
+               INIT-STATE
                X
                (list (list X X #false #false #false #false)
                      (list O O #false #false #false #false)
@@ -55,8 +64,9 @@
                      (list X #false #false #false #false #false)
                      (list O O #false #false #false #false)
                      (list O X X #false #false #false)))
-              (list 4))
-(check-expect (next-moves
+              (make-state #false (list 4)))
+(check-expect (next-state
+               INIT-STATE
                X
                (list (list O X X #false #false #false)
                      (list O X O #false #false #false)
@@ -65,12 +75,13 @@
                      (list X X #false #false #false #false)
                      (list O O #false #false #false #false)
                      (list O X X #false #false #false)))
-              (list 0))
+              (make-state #false (list 0)))
 
-;; tests for next-moves/n
-(define next-moves/2 (next-moves/n 2))
+;; tests for next-state/n
+(define next-state/2 (next-state/n 2))
 
-(check-expect (next-moves/2
+(check-expect (next-state/2
+               INIT-STATE
                X
                (list (list #false #false #false #false #false #false)
                      (list #false #false #false #false #false #false)
@@ -79,8 +90,9 @@
                      (list #false #false #false #false #false #false)
                      (list #false #false #false #false #false #false)
                      (list X #false #false #false #false #false)))
-              (list 1 4))
-(check-expect (next-moves/2
+              (make-state #false (list 1 4)))
+(check-expect (next-state/2
+               INIT-STATE
                X
                (list (list #false #false #false #false #false #false)
                      (list #false #false #false #false #false #false)
@@ -89,9 +101,10 @@
                      (list #false #false #false #false #false #false)
                      (list X #false #false #false #false #false)
                      (list #false #false #false #false #false #false)))
-              (list 0 1 4))
+              (make-state #false (list 0 1 4)))
 
-(check-expect (next-moves/2
+(check-expect (next-state/2
+               INIT-STATE
                X
                (list (list #false #false #false #false #false #false)
                      (list #false #false #false #false #false #false)
@@ -100,8 +113,9 @@
                      (list #false #false #false #false #false #false)
                      (list #false #false #false #false #false #false)
                      (list O O #false #false #false #false)))
-              (list 1 4))
-(check-expect (next-moves/2
+              (make-state X (list 1 4)))
+(check-expect (next-state/2
+               INIT-STATE
                X
                (list (list #false #false #false #false #false #false)
                      (list #false #false #false #false #false #false)
@@ -110,9 +124,10 @@
                      (list #false #false #false #false #false #false)
                      (list O O #false #false #false #false)
                      (list #false #false #false #false #false #false)))
-              (list 1))
+              (make-state X (list 1)))
 
-(check-expect (next-moves/2
+(check-expect (next-state/2
+               INIT-STATE
                X
                (list (list #false #false #false #false #false #false)
                      (list #false #false #false #false #false #false)
@@ -121,37 +136,32 @@
                      (list #false #false #false #false #false #false)
                      (list #false #false #false #false #false #false)
                      (list X X #false #false #false #false)))
-              (list 1 4 6))
-
-;; filter-moves : Side Board Natural [List-of Natural] -> [List-of Natural]
-;; Goes n levels deep
-(define (filter-moves s b n mvs)
-  (result-moves (best-outcomes s b n mvs)))
+              (make-state #false (list 1 4 6)))
 
 ;; ----------------------------------------------------------------------------
 
-;; A Result is a (make-result [Maybe Side] [List-of Natural])
-(define-struct result [winner moves])
+;; A ChoiceResult is a (make-choice-result Natural State)
+(define-struct choice-result [move state])
 
-;; A ChoiceResult is a (make-choice-result Natural [Maybe Side])
-(define-struct choice-result [move winner])
+;; choice-result-winner : ChoiceResult -> [Maybe Side]
+(define (choice-result-winner c)
+  (state-winner (choice-result-state c)))
 
-;; best-outcomes : Side Board Natural [List-of Natural] -> Result
+;; best-outcomes : Side Board Natural [List-of Natural] -> State
 (define (best-outcomes s b n mvs)
   (local [(define s* (other-side s))]
     (cond
-      [(winning-board? s b) (make-result s mvs)]
-      [(winning-board? s* b) (make-result s* mvs)]
-      [(zero? n) (make-result #false mvs)]
-      [(empty? mvs) (make-result #false '())]
+      [(winning-board? s b) (make-state s mvs)]
+      [(winning-board? s* b) (make-state s* mvs)]
+      [(zero? n) (make-state #false mvs)]
+      [(empty? mvs) (make-state #false '())]
       [else
        (local [;; next-outcome : Natural -> ChoiceResult
                (define (next-outcome c)
                  (local [(define b* (board-play-at b c s))]
                    (make-choice-result
                     c
-                    (result-winner
-                     (best-outcomes s* b* (sub1 n) (valid-moves b*))))))
+                    (best-outcomes s* b* (sub1 n) (valid-moves b*)))))
                (define next-outcomes
                  (map next-outcome mvs))
                ;; winning-choice? : ChoiceResult -> Boolean
@@ -162,7 +172,7 @@
                       (filter winning-choice? next-outcomes)))]
          (cond
            [(not (empty? winning-moves))
-            (make-result s winning-moves)]
+            (make-state s winning-moves)]
            [else
             (local [;; losing-choice? : ChoiceResult -> Boolean
                     (define (losing-choice? entry)
@@ -173,15 +183,17 @@
                                    next-outcomes)))]
               (cond
                 [(not (empty? non-losing-moves))
-                 (make-result #false non-losing-moves)]
+                 (make-state #false non-losing-moves)]
                 [else
-                 (make-result s* mvs)]))]))])))
+                 (make-state s* mvs)]))]))])))
 
 ;; ----------------------------------------------------------------------------
 
 ;; The COMPUTER PlayerType and INIT states
 
-(define COMPUTER (make-computer next-moves))
+(define COMPUTER (make-computer INIT-STATE
+                                next-state
+                                state-moves))
 
 (define HUMAN-v-COMPUTER (make-player-types HUMAN COMPUTER))
 (define COMPUTER-v-HUMAN (make-player-types COMPUTER HUMAN))

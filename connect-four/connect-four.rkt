@@ -87,21 +87,46 @@
 ;;  - Computer
 (define HUMAN 'HUMAN)
 
-;; A Computer is a (make-computer [Side Board -> [List-of Natural]])
-(define-struct computer (next-moves))
+;; A Computer is a
+;;   (make-computer State
+;;                  [State Side Board -> State]
+;;                  [State -> [List-of Natural]])
+;; where State is a type associated with each instance
+(define-struct computer (state next-state state-moves))
 
-;; computer-moves : Computer Side Board -> [List-of Natural]
-(define (computer-moves c s b)
-  ((computer-next-moves c) s b))
+;; get-computer-next-state : Computer Side Board -> State
+;; where State is the type associated with the Computer c
+(define (get-computer-next-state c s b)
+  ((computer-next-state c) (computer-state c) s b))
+
+;; get-computer-state-moves : Computer State -> [List-of Natural]
+;; where State is the type associated with the Computer c
+(define (get-computer-state-moves c state)
+  ((computer-state-moves c) state))
+
+;; update-computer-state : Computer State -> Computer
+(define (update-computer-state c state)
+  (make-computer state (computer-next-state c) (computer-state-moves c)))
 
 ;; get-player-type : PlayerTypes Side -> PlayerType
 (define (get-player-type ts s)
   (cond [(equal? s X) (player-types-p1 ts)]
         [(equal? s O) (player-types-p2 ts)]))
 
+;; update-player-type : PlayerTypes Side PlayerType -> PlayerTypes
+(define (update-player-type ts s t)
+  (cond [(equal? s X) (make-player-types t (player-types-p2 ts))]
+        [(equal? s O) (make-player-types (player-types-p1 ts) t)]))
+
 ;; game-player-type : Game -> PlayerType
 (define (game-player-type g)
   (get-player-type (game-player-types g) (game-turn g)))
+
+;; update-game-player-type : Game PlayerType -> Game
+(define (update-game-player-type g t)
+  (make-game (game-turn g)
+             (game-board g)
+             (update-player-type (game-player-types g) (game-turn g) t)))
 
 ;; ----------------------------------------------------------------------------
 
@@ -246,15 +271,21 @@
 (define (continue-game/player-type t g)
   (cond [(equal? t HUMAN) #false]
         [else
-         (local [(define next-moves
-                   (computer-moves t (game-turn g) (game-board g)))]
+         (local [(define next-state
+                   (get-computer-next-state t (game-turn g) (game-board g)))
+                 (define next-moves
+                   (get-computer-state-moves t next-state))]
            (cond
              [(empty? next-moves)
               (cond [(empty? (valid-moves (game-board g)))
                      (make-end-state g #false)]
                     [else #false])]
              [else
-              (check-winner (game-play-at g (random-element next-moves)))]))]))
+              (check-winner (game-play-at
+                             (update-game-player-type
+                              g
+                              (update-computer-state t next-state))
+                             (random-element next-moves)))]))]))
 
 ;; ----------------------------------------------------------------------------
 
