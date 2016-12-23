@@ -15,7 +15,7 @@
          winning-board? check-winner
          make-player-types player-types-p1 player-types-p2
          HUMAN
-         computer? make-computer computer-next-moves
+         computer? make-computer
          game-player-type
          continue-game
          )
@@ -84,9 +84,15 @@
 
 ;; A PlayerType is one of:
 ;;  - HUMAN
-;;  - (make-computer [Side Board -> [List-of Natural]])
+;;  - Computer
 (define HUMAN 'HUMAN)
+
+;; A Computer is a (make-computer [Side Board -> [List-of Natural]])
 (define-struct computer (next-moves))
+
+;; computer-moves : Computer Side Board -> [List-of Natural]
+(define (computer-moves c s b)
+  ((computer-next-moves c) s b))
 
 ;; get-player-type : PlayerTypes Side -> PlayerType
 (define (get-player-type ts s)
@@ -241,7 +247,7 @@
   (cond [(equal? t HUMAN) #false]
         [else
          (local [(define next-moves
-                   ((computer-next-moves t) (game-turn g) (game-board g)))]
+                   (computer-moves t (game-turn g) (game-board g)))]
            (cond
              [(empty? next-moves)
               (cond [(empty? (valid-moves (game-board g)))
