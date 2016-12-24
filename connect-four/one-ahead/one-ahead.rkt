@@ -4,7 +4,6 @@
 
 (provide INIT-HC INIT-CH INIT-CC)
 
-(require 2htdp/abstraction)
 (require "../connect-four.rkt")
 (require "../gui.rkt")
 
@@ -16,19 +15,28 @@
 
 (define 0..W (range 0 W 1))
 
-;; A State is a
-;;   (make-state [Maybe Side] [List-of Natural] [Maybe [List-of ChoiceResult]])
-(define-struct state [winner moves nexts])
+;; A State is one of:
+;;  - #false
+;;  - Result
+
+;; A Result is a
+;;   (make-state [Maybe Side] [List-of ChoiceResult])
+(define-struct result [winner nexts])
 
 ;; INIT-STATE : State
-(define INIT-STATE (make-state #false (range 0 W 1) #false))
+(define INIT-STATE #false)
+
+;; state-moves : State -> [List-of Natural]
+(define (state-moves s)
+  (cond [(false? s) 0..W]
+        [else (map choice-result-move (result-nexts s))]))
 
 ;; A ChoiceResult is a (make-choice-result Natural State)
 (define-struct choice-result [move state])
 
 ;; choice-result-winner : ChoiceResult -> [Maybe Side]
 (define (choice-result-winner c)
-  (state-winner (choice-result-state c)))
+  (result-winner (choice-result-state c)))
 
 ;; next-state/n : Natural -> [Side Board -> State]
 ;; Goes 2*n levels deep.
@@ -55,11 +63,10 @@
                      (list X #false #false #false #false #false)
                      (list O O O #false #false #false)
                      (list X X X #false #false #false)))
-              (make-state
+              (only-paths
                X
-               (list 2 6)
-               (list (make-choice-result 2 (make-state X '() #false))
-                     (make-choice-result 6 (make-state X '() #false)))))
+               (list (make-choice-result 2 X-IMM-WIN)
+                     (make-choice-result 6 X-IMM-WIN))))
 (check-expect (next-state/1
                INIT-STATE
                X
@@ -70,9 +77,8 @@
                      (list X #false #false #false #false #false)
                      (list O O #false #false #false #false)
                      (list O X X #false #false #false)))
-              (make-state
+              (only-paths
                #false
-               (list 1)
                (list (make-choice-result 1 NO-IMM-WIN-1))))
 (check-expect (next-state/1
                INIT-STATE
@@ -84,9 +90,8 @@
                      (list X #false #false #false #false #false)
                      (list O O #false #false #false #false)
                      (list O X X #false #false #false)))
-              (make-state
+              (only-paths
                #false
-               (list 4)
                (list (make-choice-result 4 NO-IMM-WIN-1))))
 (check-expect (next-state/1
                INIT-STATE
@@ -98,9 +103,8 @@
                      (list X X #false #false #false #false)
                      (list O O #false #false #false #false)
                      (list O X X #false #false #false)))
-              (make-state
+              (only-paths
                #false
-               (list 0)
                (list (make-choice-result 0 NO-IMM-WIN-1))))
 
 ;; tests for next-state/n
@@ -218,17 +222,17 @@
                     0
                     (only-paths
                      X
-                     (list (make-choice-result 4 (make-state X '() #false)))))
+                     (list (make-choice-result 4 X-IMM-WIN))))
                    (make-choice-result
                     4
                     (only-paths
                      X
-                     (list (make-choice-result 0 (make-state X '() #false))))))
+                     (list (make-choice-result 0 X-IMM-WIN)))))
                   (only-paths
                    X
                    (list
-                    (make-choice-result 0 (make-state X '() #false))
-                    (make-choice-result 4 (make-state X '() #false))))))
+                    (make-choice-result 0 X-IMM-WIN)
+                    (make-choice-result 4 X-IMM-WIN)))))
                 (make-choice-result
                  4
                  (paths
@@ -238,17 +242,17 @@
                     1
                     (only-paths
                      X
-                     (list (make-choice-result 5 (make-state X '() #false)))))
+                     (list (make-choice-result 5 X-IMM-WIN))))
                    (make-choice-result
                     5
                     (only-paths
                      X
-                     (list (make-choice-result 1 (make-state X '() #false))))))
+                     (list (make-choice-result 1 X-IMM-WIN)))))
                   (only-paths
                    X
                    (list
-                    (make-choice-result 1 (make-state X '() #false))
-                    (make-choice-result 5 (make-state X '() #false)))))))))
+                    (make-choice-result 1 X-IMM-WIN)
+                    (make-choice-result 5 X-IMM-WIN))))))))
 (check-expect (next-state/2
                INIT-STATE
                X
@@ -271,17 +275,17 @@
                     0
                     (only-paths
                      X
-                     (list (make-choice-result 4 (make-state X '() #false)))))
+                     (list (make-choice-result 4 X-IMM-WIN))))
                    (make-choice-result
                     4
                     (only-paths
                      X
-                     (list (make-choice-result 0 (make-state X '() #false))))))
+                     (list (make-choice-result 0 X-IMM-WIN)))))
                   (only-paths
                    X
                    (list
-                    (make-choice-result 0 (make-state X '() #false))
-                    (make-choice-result 4 (make-state X '() #false)))))))))
+                    (make-choice-result 0 X-IMM-WIN)
+                    (make-choice-result 4 X-IMM-WIN))))))))
 
 (check-expect (next-state/2
                INIT-STATE
@@ -345,7 +349,14 @@
                         (list
                          (make-choice-result
                           6
-                          (make-state #false (list 0 1 2 3 4 5) #false)))
+                          (only-paths
+                           #false
+                           (list (make-choice-result 0 #false)
+                                 (make-choice-result 1 #false)
+                                 (make-choice-result 2 #false)
+                                 (make-choice-result 3 #false)
+                                 (make-choice-result 4 #false)
+                                 (make-choice-result 5 #false)))))
                         NO-IMM-WIN-0)))
                      NO-IMM-WIN-1))))))))
 
@@ -355,10 +366,12 @@
 (define (best-outcomes s b n mvs)
   (local [(define s* (other-side s))]
     (cond
-      [(winning-board? s b) (make-state s '() #false)]
-      [(winning-board? s* b) (make-state s* '() #false)]
-      [(zero? n) (make-state #false mvs #false)]
-      [(empty? mvs) (make-state #false '() '())]
+      [(winning-board? s b) (imm-win s)]
+      [(winning-board? s* b) (imm-win s*)]
+      [(zero? n) (make-result #false
+                              (map (λ (mv) (make-choice-result mv #false))
+                                   mvs))]
+      [(empty? mvs) IMM-TIE]
       [else
        (local [;; next-outcome : Natural -> ChoiceResult
                (define (next-outcome c)
@@ -375,9 +388,7 @@
                  (filter winning-choice? next-outcomes))]
          (cond
            [(not (empty? winning-choices))
-            (make-state s
-                        (map choice-result-move winning-choices)
-                        winning-choices)]
+            (make-result s winning-choices)]
            [else
             (local [;; losing-choice? : ChoiceResult -> Boolean
                     (define (losing-choice? entry)
@@ -387,13 +398,9 @@
                               next-outcomes))]
               (cond
                 [(not (empty? non-losing-choices))
-                 (make-state #false
-                             (map choice-result-move non-losing-choices)
-                             non-losing-choices)]
+                 (make-result #false non-losing-choices)]
                 [else
-                 (make-state s*
-                             (map choice-result-move next-outcomes)
-                             next-outcomes)]))]))])))
+                 (make-result s* next-outcomes)]))]))])))
 
 ;; ----------------------------------------------------------------------------
 
@@ -415,17 +422,20 @@
 
 ;; States for no immediate winner
 
+;; imm-win : [Maybe Side] -> Result
+(define (imm-win winner) (make-result winner '()))
+
+(define X-IMM-WIN (imm-win X))
+(define O-IMM-WIN (imm-win O))
+(define IMM-TIE (imm-win #false))
+
 ;; only-paths : [Maybe Side] [List-of Choice-Result] -> State
 (define (only-paths winner choices)
-  (make-state winner
-              (map choice-result-move choices)
-              choices))
+  (make-result winner choices))
 
 ;; paths : [Maybe Side] [List-of Choice-Result] State -> State
 (define (paths winner meaningful-choices default)
-  (make-state winner
-              0..W
-              (choice-paths meaningful-choices default)))
+  (make-result winner (choice-paths meaningful-choices default)))
 
 ;; choice-paths :
 ;; [List-of ChoiceResult] State -> [List-of ChoiceResult]
@@ -449,7 +459,8 @@
           (make-choice-result start default)
           (choice-paths/a meaningful-choices (add1 start) default))]))
 
-(define NO-IMM-WIN-0 (make-state #false 0..W #false))
+(define NO-IMM-WIN-0
+  (paths #false '() #false))
 
 (define NO-IMM-WIN-1
   (paths #false '() NO-IMM-WIN-0))
@@ -464,33 +475,29 @@
   (paths #false '() NO-IMM-WIN-3))
 
 (check-expect NO-IMM-WIN-1
-              (make-state
+              (make-result
                #false
-               0..W
                (build-list W
                            (λ (i)
                              (make-choice-result i NO-IMM-WIN-0)))))
 
 (check-expect NO-IMM-WIN-2
-              (make-state
+              (make-result
                #false
-               0..W
                (build-list W
                            (λ (i)
                              (make-choice-result i NO-IMM-WIN-1)))))
 
 (check-expect NO-IMM-WIN-3
-              (make-state
+              (make-result
                #false
-               0..W
                (build-list W
                            (λ (i)
                              (make-choice-result i NO-IMM-WIN-2)))))
 
 (check-expect NO-IMM-WIN-4
-              (make-state
+              (make-result
                #false
-               0..W
                (build-list W
                            (λ (i)
                              (make-choice-result i NO-IMM-WIN-3)))))
