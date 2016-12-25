@@ -87,12 +87,13 @@
 ;;  - Computer
 (define HUMAN 'HUMAN)
 
-;; A Computer is a
-;;   (make-computer State
-;;                  [State Side Board -> State]
-;;                  [State -> [List-of Natural]])
+;; A Computer is a struct with fields:
+;;   state          : State
+;;   next-state     : [State Side Board -> State]
+;;   state-moves    : [State -> [List-of Natural]]
+;;   state-add-move : [State Side Natural -> State]
 ;; where State is a type associated with each instance
-(define-struct computer (state next-state state-moves))
+(define-struct computer (state next-state state-moves state-add-move))
 
 ;; get-computer-next-state : Computer Side Board -> State
 ;; where State is the type associated with the Computer c
@@ -106,7 +107,27 @@
 
 ;; update-computer-state : Computer State -> Computer
 (define (update-computer-state c state)
-  (make-computer state (computer-next-state c) (computer-state-moves c)))
+  (make-computer state
+                 (computer-next-state c)
+                 (computer-state-moves c)
+                 (computer-state-add-move c)))
+
+;; get-computer-state-add-move : Computer State Side Natural -> State
+(define (get-computer-state-add-move c state s mv)
+  ((computer-state-add-move c) state s mv))
+
+;; player-types-add-move : PlayerTypes Side Natural -> PlayerTypes
+(define (player-types-add-move ts s mv)
+  (make-player-types (player-type-add-move (player-types-p1 ts) s mv)
+                     (player-type-add-move (player-types-p2 ts) s mv)))
+
+;; player-type-add-move : PlayerType Side Natural -> PlayerType
+(define (player-type-add-move t s mv)
+  (cond [(equal? HUMAN t) t]
+        [(computer? t)
+         (update-computer-state
+          t
+          (get-computer-state-add-move t (computer-state t) s mv))]))
 
 ;; get-player-type : PlayerTypes Side -> PlayerType
 (define (get-player-type ts s)
@@ -215,9 +236,10 @@
 
 ;; game-play-at : Game Natural -> Game
 (define (game-play-at g column)
-  (make-game (other-side (game-turn g))
-             (board-play-at (game-board g) column (game-turn g))
-             (game-player-types g)))
+  (local [(define s (other-side (game-turn g)))]
+    (make-game s
+               (board-play-at (game-board g) column (game-turn g))
+               (player-types-add-move (game-player-types g) s column))))
 
 ;; board-play-at : Board Natural Side -> Board
 (define (board-play-at b column side)
@@ -271,8 +293,9 @@
 (define (continue-game/player-type t g)
   (cond [(equal? t HUMAN) #false]
         [else
-         (local [(define next-state
-                   (get-computer-next-state t (game-turn g) (game-board g)))
+         (local [(define s (game-turn g))
+                 (define next-state
+                   (get-computer-next-state t s (game-board g)))
                  (define next-moves
                    (get-computer-state-moves t next-state))]
            (cond
@@ -281,11 +304,12 @@
                      (make-end-state g #false)]
                     [else #false])]
              [else
-              (check-winner (game-play-at
-                             (update-game-player-type
-                              g
-                              (update-computer-state t next-state))
-                             (random-element next-moves)))]))]))
+              (local [(define mv (random-element next-moves))]
+                (check-winner (game-play-at
+                               (update-game-player-type
+                                g
+                                (update-computer-state t next-state))
+                               mv)))]))]))
 
 ;; ----------------------------------------------------------------------------
 

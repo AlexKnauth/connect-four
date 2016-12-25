@@ -38,20 +38,36 @@
 (define (choice-result-winner c)
   (result-winner (choice-result-state c)))
 
-;; next-state/n : Natural -> [Side Board -> State]
-;; Goes 2*n levels deep.
-(define (next-state/n n)
+;; make-next-state/n : Natural -> [Side Board -> State]
+(define (make-next-state/n n)
   (local [;; next-state : State Side Board -> State
           (define (next-state state s b)
-            (best-outcomes s b (* 2 n) (valid-moves b)))]
+            (next-state/depth state s b (* 2 n)))]
     next-state))
+
+;; next-state/depth : Natural -> [Side Board -> State]
+;; Goes d levels deep.
+(define (next-state/depth state s b d)
+  (cond
+    [(or (false? state) (zero? d))
+     (best-outcomes s b d (valid-moves b))]
+    [(result? state)
+     (local [;; update-choice-result : ChoiceResult -> ChoiceResult
+             (define (update-choice-result c)
+               (local [(define mv (choice-result-move c))
+                       (define s* (other-side s))
+                       (define b* (board-play-at b mv s))]
+                 (make-choice-result
+                  mv
+                  (next-state/depth (choice-result-state c) s* b* (sub1 d)))))]
+       (best-choices s (map update-choice-result (result-nexts state))))]))
 
 ;; next-state : State Side Board -> State
 ;; Goes 2 levels deep: one turn for s, and one turn for the other side
-(define next-state (next-state/n MOVES-AHEAD))
+(define next-state (make-next-state/n MOVES-AHEAD))
 
 ;; tests for next-state/1
-(define next-state/1 (next-state/n 1))
+(define next-state/1 (make-next-state/n 1))
 
 (check-expect (next-state/1
                INIT-STATE
@@ -108,7 +124,7 @@
                (list (make-choice-result 0 NO-IMM-WIN-1))))
 
 ;; tests for next-state/n
-(define next-state/2 (next-state/n 2))
+(define next-state/2 (make-next-state/n 2))
 
 (check-expect (next-state/2
                INIT-STATE
@@ -378,29 +394,52 @@
                  (local [(define b* (board-play-at b c s))]
                    (make-choice-result
                     c
-                    (best-outcomes s* b* (sub1 n) (valid-moves b*)))))
-               (define next-outcomes
-                 (map next-outcome mvs))
-               ;; winning-choice? : ChoiceResult -> Boolean
-               (define (winning-choice? entry)
-                 (equal? (choice-result-winner entry) s))
-               (define winning-choices
-                 (filter winning-choice? next-outcomes))]
+                    (best-outcomes s* b* (sub1 n) (valid-moves b*)))))]
+         (best-choices s (map next-outcome mvs)))])))
+
+;; best-choices : Side [List-of ChoiceResult] -> Result
+(define (best-choices s choices)
+  (local [(define s* (other-side s))
+          ;; winning-choice? : ChoiceResult -> Boolean
+          (define (winning-choice? entry)
+            (equal? (choice-result-winner entry) s))
+          (define winning-choices
+            (filter winning-choice? choices))]
+    (cond
+      [(not (empty? winning-choices))
+       (make-result s winning-choices)]
+      [else
+       (local [;; losing-choice? : ChoiceResult -> Boolean
+               (define (losing-choice? entry)
+                 (equal? (choice-result-winner entry) s*))
+               (define non-losing-choices
+                 (filter (compose not losing-choice?)
+                         choices))]
          (cond
-           [(not (empty? winning-choices))
-            (make-result s winning-choices)]
+           [(not (empty? non-losing-choices))
+            (make-result #false non-losing-choices)]
            [else
-            (local [;; losing-choice? : ChoiceResult -> Boolean
-                    (define (losing-choice? entry)
-                      (equal? (choice-result-winner entry) s*))
-                    (define non-losing-choices
-                      (filter (compose not losing-choice?)
-                              next-outcomes))]
-              (cond
-                [(not (empty? non-losing-choices))
-                 (make-result #false non-losing-choices)]
-                [else
-                 (make-result s* next-outcomes)]))]))])))
+            (make-result s* choices)]))])))
+
+;; ----------------------------------------------------------------------------
+
+;; The state-add-move method
+
+;; state-add-move : State Side Natural -> State
+(define (state-add-move state s mv)
+  (cond
+    [(false? state) #false]
+    [(result? state)
+     (lookup-move-result (result-nexts state) s mv)]))
+
+;; lookup-move-result : [List-of ChoiceResult] Side Natural -> State
+(define (lookup-move-result choices s mv)
+  (cond
+    [(empty? choices) #false]
+    [(cons? choices)
+     (if (equal? mv (choice-result-move (first choices)))
+         (choice-result-state (first choices))
+         (lookup-move-result (rest choices) s mv))]))
 
 ;; ----------------------------------------------------------------------------
 
@@ -408,7 +447,8 @@
 
 (define COMPUTER (make-computer INIT-STATE
                                 next-state
-                                state-moves))
+                                state-moves
+                                state-add-move))
 
 (define HUMAN-v-COMPUTER (make-player-types HUMAN COMPUTER))
 (define COMPUTER-v-HUMAN (make-player-types COMPUTER HUMAN))
