@@ -59,8 +59,21 @@
                        (define b* (board-play-at b mv s))]
                  (make-choice-result
                   mv
-                  (next-state/depth (choice-result-state c) s* b* (sub1 d)))))]
-       (best-choices s (map update-choice-result (result-nexts state))))]))
+                  (next-state/depth (choice-result-state c) s* b* (sub1 d)))))
+             (define old-next-states
+               (map choice-result-state (result-nexts state)))
+             (define choices
+               (map update-choice-result (result-nexts state)))]
+       ;; optimization: if the updated choices result in the same winner
+       ;;               possibilities, just use them all without filtering
+       (cond
+         [(and (andmap result? old-next-states)
+               (equal? (map result-winner old-next-states)
+                       (map result-winner (map choice-result-state choices))))
+          (make-result (result-winner state)
+                       choices)]
+         [else
+          (best-choices s choices)]))]))
 
 ;; next-state : State Side Board -> State
 ;; Goes 2 levels deep: one turn for s, and one turn for the other side
