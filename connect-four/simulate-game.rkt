@@ -1,5 +1,9 @@
 #lang htdp/isl+
 
+(require "util/provide.rkt")
+
+(provide simulate-game display-simulation)
+
 (require "connect-four.rkt")
 (require "draw/game-state.rkt")
 (require 2htdp/universe)

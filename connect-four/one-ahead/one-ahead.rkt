@@ -471,6 +471,18 @@
 (define INIT-CH (make-game X EMPTY-BOARD COMPUTER-v-HUMAN))
 (define INIT-CC (make-game X EMPTY-BOARD COMPUTER-v-COMPUTER))
 
+(define COMPUTER/1 (make-computer INIT-STATE
+                                  next-state/1
+                                  state-moves
+                                  state-add-move))
+(define COMPUTER/2 (make-computer INIT-STATE
+                                  next-state/2
+                                  state-moves
+                                  state-add-move))
+
+(define INIT-CC-UNBALANCED
+  (make-game X EMPTY-BOARD (make-player-types COMPUTER/1 COMPUTER/2)))
+
 ;; ----------------------------------------------------------------------------
 
 ;; States for no immediate winner
