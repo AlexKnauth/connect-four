@@ -45,7 +45,7 @@
             (next-state/depth state s b (* 2 n)))]
     next-state))
 
-;; next-state/depth : Natural -> [Side Board -> State]
+;; next-state/depth : State Side Board Natural -> State
 ;; Goes d levels deep.
 (define (next-state/depth state s b d)
   (cond
