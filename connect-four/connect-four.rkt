@@ -2,28 +2,25 @@
 
 (require "util/provide.rkt")
 
-(provide W H N
-         INIT-HH
-         game-state?
-         game? make-game game-turn game-board game-player-types
-         end-state? make-end-state end-state-game end-state-winner
-         X O other-side side->string
-         make-pos pos-column pos-row
-         valid-moves valid-move?
-         EMPTY-BOARD board-ref
-         board-play-at game-play-at
-         winning-board? check-winner
-         make-player-types player-types-p1 player-types-p2
-         HUMAN
-         computer? make-computer
-         game-player-type
-         continue-game
+(provide connect-four
+         W H N
+         X O X? O?
+         make-pos pos? pos-column pos-row
+         board-ref
+         board-columns
+         board-valid-move?
+         side->string
          )
 
 (require 2htdp/abstraction)
 (require "util/list.rkt")
+(require "util/generic.rkt")
+
+(require turn-based-game/turn-based-game)
 
 ;; ----------------------------------------------------------------------------
+
+;; Constants
 
 (define W 7)
 (define H 6)
@@ -33,21 +30,11 @@
 
 ;; Data Definitions
 
-;; A GameState is one of:
-;;  - Game
-;;  - EndState
-;; game-state? : Any -> Boolean
-(define (game-state? v)
-  (or (game? v) (end-state? v)))
+;; A GameState is a Board
+;; A MoveChoice is a XPos
 
-;; A Game is a (make-game Side Board PlayerTypes)
-(define-struct game (turn board player-types))
-
-;; An EndState is a (make-end-state Game [Maybe Side])
-(define-struct end-state (game winner))
-
-;; A Board is a [List-of BoardColumn]
-;; A BoardColumn is a [List-of Space]
+;; A Board is a [Listof BoardColumn]
+;; A BoardColumn is a [Listof Space]
 
 ;; A Space is a [Maybe Side]
 
@@ -56,10 +43,13 @@
 ;;  - O
 (define X 'X)
 (define O 'O)
+(define (X? s) (eq? s X))
+(define (O? s) (eq? s O))
 
-(define-struct pos (column row))
-;; A Pos is a (make-pos Natural Natural)
-;; where (0 <= column < W) and (0 <= row < H)
+(define-struct pos [column row])
+;; A Pos is a (make-pos XPos YPos)
+;; A XPos is a Natural[0,W)
+;; A YPos is a Natural[0,H)
 
 ;; 5 | | | | | | | |
 ;; 4 | | | | | | | |
@@ -77,91 +67,45 @@
 
 ;; ----------------------------------------------------------------------------
 
-;; Types of players
+(define-struct/generic connect-four []
 
-;; A PlayerTypes is a (make-player-types PlayerType PlayerType)
-(define-struct player-types (p1 p2))
+  ;; Not marked final, so other structs can inherit from this one.
+  ;; For example connect-four/gui can be defined as a sub-struct to
+  ;; implement interfaces like gen:turn-based-game/gui.
 
-;; A PlayerType is one of:
-;;  - HUMAN
-;;  - Computer
-(define HUMAN 'HUMAN)
+  #:methods gen:turn-based-game
+  [;; sides : TBG GameState -> [Listof Sides]
+   ;; Order in the result does not matter
+   (define (sides self state)
+     (list X O))
 
-;; A Computer is a struct with fields:
-;;   state          : State
-;;   next-state     : [State Side Board -> State]
-;;   state-moves    : [State -> [List-of Natural]]
-;;   state-add-move : [State Side Natural -> State]
-;; where State is a type associated with each instance
-(define-struct computer (state next-state state-moves state-add-move))
+   ;; next-side : TBG GameState Side -> Side
+   (define (next-side self state s)
+     (cond [(X? s) O]
+           [(O? s) X]))
 
-;; get-computer-next-state : Computer Side Board -> State
-;; where State is the type associated with the Computer c
-(define (get-computer-next-state c s b)
-  ((computer-next-state c) (computer-state c) s b))
+   ;; play-at : TBG GameState Side MoveChoice -> GameState
+   (define (play-at self state side move)
+     (board-play-at state side move))
 
-;; get-computer-state-moves : Computer State -> [List-of Natural]
-;; where State is the type associated with the Computer c
-(define (get-computer-state-moves c state)
-  ((computer-state-moves c) state))
+   ;; valid-move-choice? : TBG GameState Side MoveChoice -> Bool
+   ;; ASSUME no one has won yet
+   (define (valid-move-choice? self state side move)
+     (board-valid-move? state move))
 
-;; update-computer-state : Computer State -> Computer
-(define (update-computer-state c state)
-  (make-computer state
-                 (computer-next-state c)
-                 (computer-state-moves c)
-                 (computer-state-add-move c)))
+   ;; valid-move-choices : TBG GameState Side -> [Sequenceof MoveChoice]
+   (define (valid-move-choices self state side)
+     (board-valid-moves state))
+   
+   ;; winning-state? : TBG GameState Side -> Boolean
+   (define (winning-state? self state side)
+     (winning-board? side state))]
 
-;; get-computer-state-add-move : Computer State Side Natural -> State
-(define (get-computer-state-add-move c state s mv)
-  ((computer-state-add-move c) state s mv))
-
-;; player-types-add-move : PlayerTypes Side Natural -> PlayerTypes
-(define (player-types-add-move ts s mv)
-  (make-player-types (player-type-add-move (player-types-p1 ts) s mv)
-                     (player-type-add-move (player-types-p2 ts) s mv)))
-
-;; player-type-add-move : PlayerType Side Natural -> PlayerType
-(define (player-type-add-move t s mv)
-  (cond [(equal? HUMAN t) t]
-        [(computer? t)
-         (update-computer-state
-          t
-          (get-computer-state-add-move t (computer-state t) s mv))]))
-
-;; get-player-type : PlayerTypes Side -> PlayerType
-(define (get-player-type ts s)
-  (cond [(equal? s X) (player-types-p1 ts)]
-        [(equal? s O) (player-types-p2 ts)]))
-
-;; update-player-type : PlayerTypes Side PlayerType -> PlayerTypes
-(define (update-player-type ts s t)
-  (cond [(equal? s X) (make-player-types t (player-types-p2 ts))]
-        [(equal? s O) (make-player-types (player-types-p1 ts) t)]))
-
-;; game-player-type : Game -> PlayerType
-(define (game-player-type g)
-  (get-player-type (game-player-types g) (game-turn g)))
-
-;; update-game-player-type : Game PlayerType -> Game
-(define (update-game-player-type g t)
-  (make-game (game-turn g)
-             (game-board g)
-             (update-player-type (game-player-types g) (game-turn g) t)))
-
-;; ----------------------------------------------------------------------------
-
-;; Side functions
-
-;; other-side : Side -> Side
-(define (other-side s)
-  (cond [(equal? s X) O]
-        [(equal? s O) X]))
-
-;; side->string : Side -> String
-(define (side->string s)
-  (cond [(equal? s X) "Red"]
-        [(equal? s O) "Black"]))
+  #:methods gen:turn-based-game/standard-initial-state
+  [;; standard-initial-state : TBGI -> GameState
+   (define (standard-initial-state self) EMPTY-BOARD)
+   ;; standard-initial-side : TBGI -> Side
+   (define (standard-initial-side self) X)])
 
 ;; ----------------------------------------------------------------------------
 
@@ -206,43 +150,29 @@
 
 ;; ----------------------------------------------------------------------------
 
-;; INIT states
-
-(define HUMAN-v-HUMAN (make-player-types HUMAN HUMAN))
-(define INIT-HH (make-game X EMPTY-BOARD HUMAN-v-HUMAN))
-
-;; ----------------------------------------------------------------------------
-
 ;; Valid Moves
 
-;; valid-move? : Board Natural -> Boolean
-(define (valid-move? b c)
+;; board-valid-move? : Board Natural -> Boolean
+(define (board-valid-move? b c)
   (valid-move-in-column? (list-ref b c)))
 
 ;; valid-move-in-column? : BoardColumn -> Boolean
 (define (valid-move-in-column? column)
-  (member? #false column))
+  (and (member #false column) #t))
 
-;; valid-moves : Board -> [List-of Natural]
-(define (valid-moves b)
+;; board-valid-moves : Board -> [List-of Natural]
+(define (board-valid-moves b)
   (local [;; valid-column? : Natural -> Boolean
           (define (valid-column? c)
-            (valid-move? b c))]
+            (board-valid-move? b c))]
     (filter valid-column? (build-list W identity))))
 
 ;; ----------------------------------------------------------------------------
 
 ;; Playing at a certain place
 
-;; game-play-at : Game Natural -> Game
-(define (game-play-at g column)
-  (local [(define s (other-side (game-turn g)))]
-    (make-game s
-               (board-play-at (game-board g) column (game-turn g))
-               (player-types-add-move (game-player-types g) s column))))
-
-;; board-play-at : Board Natural Side -> Board
-(define (board-play-at b column side)
+;; board-play-at : Board Side Natural -> Board
+(define (board-play-at b side column)
   (board-set-column
    b
    column
@@ -268,48 +198,6 @@
          (if (false? (first c))
              (cons s (rest c))
              (cons (first c) (board-column-play-at (rest c) s)))]))
-
-;; ----------------------------------------------------------------------------
-
-;; Displaying alerts when someone wins
-
-;; check-winner : Game -> GameState
-(define (check-winner g)
-  (cond [(winning-board? (other-side (game-turn g)) (game-board g))
-         (make-end-state g (other-side (game-turn g)))]
-        [else g]))
-
-;; ----------------------------------------------------------------------------
-
-;; Continuing the game and resetting it
-
-;; continue-game : Game -> [Maybe GameState]
-(define (continue-game g)
-  (continue-game/player-type
-   (game-player-type g)
-   g))
-
-;; continue-game/player-type : PlayerType Game -> [Maybe GameState]
-(define (continue-game/player-type t g)
-  (cond [(equal? t HUMAN) #false]
-        [else
-         (local [(define s (game-turn g))
-                 (define next-state
-                   (get-computer-next-state t s (game-board g)))
-                 (define next-moves
-                   (get-computer-state-moves t next-state))]
-           (cond
-             [(empty? next-moves)
-              (cond [(empty? (valid-moves (game-board g)))
-                     (make-end-state g #false)]
-                    [else #false])]
-             [else
-              (local [(define mv (random-element next-moves))]
-                (check-winner (game-play-at
-                               (update-game-player-type
-                                g
-                                (update-computer-state t next-state))
-                               mv)))]))]))
 
 ;; ----------------------------------------------------------------------------
 
@@ -398,4 +286,11 @@
                     (list #false #false #false #false #false #false)
                     (list #false #false #false #false #false #false)
                     (list #false #false #false #false #false #false)))
+
+;; ------------------------------------------------------------------------
+
+;; side->string : Side -> String
+(define (side->string s)
+  (cond [(equal? s X) "Red"]
+        [(equal? s O) "Black"]))
 
